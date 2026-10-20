@@ -1,0 +1,261 @@
+<title>iPhone 보안 점검판</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;700&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<style>
+/* Layout: 상단 점수 패널(게이지+단계별 진척) → 단계 탭 → 분류별 체크 목록. 한 열, 폰 우선 */
+:root {
+  --bg: #eef2f4;
+  --panel: #ffffff;
+  --ink: #14212b;
+  --muted: #5b6b77;
+  --line: #d5dde3;
+  --accent: #0f6a78;
+  --accent-soft: #dcecef;
+  --good: #1f7a4a;
+  --warn: #a8670a;
+  --bad: #b3261e;
+  --font-body: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e161c; --panel: #16222b; --ink: #e3eaee; --muted: #93a4b0; --line: #273642;
+    --accent: #5cc3cf; --accent-soft: #173640; --good: #5ccf8f; --warn: #e3a948; --bad: #f2786f;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e161c; --panel: #16222b; --ink: #e3eaee; --muted: #93a4b0; --line: #273642;
+  --accent: #5cc3cf; --accent-soft: #173640; --good: #5ccf8f; --warn: #e3a948; --bad: #f2786f;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--font-body);
+  font-size: 15px; line-height: 1.55;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px 48px;
+}
+.wrap { max-width: 760px; margin: 0 auto; display: grid; gap: 20px; }
+header { display: grid; gap: 4px; }
+.eyebrow { font-family: var(--font-mono); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+h1 { font-size: 26px; line-height: 1.25; margin: 0; text-wrap: balance; }
+.sub { color: var(--muted); margin: 0; font-size: 14px; }
+
+.score {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+  padding: 18px; display: grid; grid-template-columns: auto 1fr; gap: 20px; align-items: center;
+}
+.gauge { position: relative; width: 132px; height: 132px; }
+.gauge svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.gauge .num { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; }
+.gauge .num b { font-family: var(--font-mono); font-size: 34px; font-variant-numeric: tabular-nums; line-height: 1; }
+.gauge .num span { font-size: 12px; color: var(--muted); }
+.status { display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-mono); font-weight: 600; font-size: 13px; padding: 3px 10px; border-radius: 999px; border: 1.5px solid currentColor; }
+.status.good { color: var(--good); } .status.warn { color: var(--warn); } .status.bad { color: var(--bad); }
+.tiers { display: grid; gap: 8px; margin-top: 10px; min-width: 0; }
+.tier-row { display: grid; grid-template-columns: 34px 1fr 52px; gap: 10px; align-items: center; font-size: 13px; }
+.tier-row .lab { font-family: var(--font-mono); font-weight: 600; }
+.bar { height: 8px; background: var(--accent-soft); border-radius: 4px; overflow: hidden; }
+.bar i { display: block; height: 100%; background: var(--accent); width: 0; transition: width .3s; }
+.tier-row .pct { font-family: var(--font-mono); text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); }
+.next { font-size: 13px; color: var(--muted); margin-top: 10px; }
+.next b { color: var(--ink); }
+
+.tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+.tabs button {
+  font: inherit; font-size: 14px; padding: 7px 14px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--line); background: var(--panel); color: var(--ink);
+}
+.tabs button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--panel); }
+.tabs button:focus-visible, .item input:focus-visible + .box { outline: 2px solid var(--accent); outline-offset: 2px; }
+.tier-note { font-size: 13px; color: var(--muted); margin: -8px 0 0; }
+
+.group { display: grid; gap: 0; }
+.group h2 { font-size: 13px; font-family: var(--font-mono); letter-spacing: .06em; color: var(--muted); margin: 0 0 6px; text-transform: uppercase; }
+.list { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.item { display: grid; grid-template-columns: 22px 1fr; gap: 12px; padding: 12px 14px; border-top: 1px solid var(--line); cursor: pointer; }
+.item:first-child { border-top: 0; }
+.item input { position: absolute; opacity: 0; pointer-events: none; }
+.box { width: 22px; height: 22px; border: 2px solid var(--line); border-radius: 6px; display: grid; place-content: center; margin-top: 1px; }
+.item input:checked + .box { background: var(--good); border-color: var(--good); }
+.item input:checked + .box::after { content: ""; width: 6px; height: 11px; border: solid var(--panel); border-width: 0 2.5px 2.5px 0; transform: rotate(45deg) translate(-1px, -1px); }
+.txt { min-width: 0; }
+.t { font-weight: 500; }
+.item input:checked ~ .txt .t { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--line); }
+.crit { font-family: var(--font-mono); font-size: 11px; font-weight: 600; color: var(--bad); border: 1px solid currentColor; border-radius: 4px; padding: 0 5px; margin-left: 6px; vertical-align: 2px; }
+.path { font-size: 12.5px; color: var(--muted); overflow-wrap: anywhere; }
+
+.foot { font-size: 12.5px; color: var(--muted); display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.foot button { font: inherit; font-size: 12.5px; background: none; border: 1px solid var(--line); color: var(--muted); border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+.confirm[hidden] { display: none; }
+.confirm button.danger { color: var(--bad); border-color: var(--bad); }
+
+@media (max-width: 520px) {
+  .score { grid-template-columns: 1fr; justify-items: center; }
+  .score .side { width: 100%; }
+}
+@media (prefers-reduced-motion: reduce) { .bar i, .gauge circle { transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">iSEC-OPS · iOS 26</div>
+    <h1>iPhone 해킹차단 보안 점검판</h1>
+    <p class="sub">항목을 적용하면 체크. 핵심(★) 3점, 일반 1점 가중. 90% 이상 GREEN. 체크 상태는 이 기기 브라우저에만 저장됩니다.</p>
+  </header>
+
+  <section class="score" aria-label="종합 점수">
+    <div class="gauge">
+      <svg viewBox="0 0 120 120" aria-hidden="true">
+        <circle cx="60" cy="60" r="52" fill="none" stroke="var(--accent-soft)" stroke-width="12"></circle>
+        <circle id="arc" cx="60" cy="60" r="52" fill="none" stroke="var(--accent)" stroke-width="12" stroke-linecap="round" stroke-dasharray="326.7" stroke-dashoffset="326.7" style="transition: stroke-dashoffset .4s"></circle>
+      </svg>
+      <div class="num"><b id="pct">0</b><span>/ 100</span></div>
+    </div>
+    <div class="side">
+      <span id="status" class="status bad">RED</span>
+      <div class="tiers" id="tiers"></div>
+      <div class="next" id="next"></div>
+    </div>
+  </section>
+
+  <div class="tabs" role="group" aria-label="단계 필터" id="tabs">
+    <button id="tab-all" data-t="all" aria-pressed="true">전체</button>
+    <button id="tab-L1" data-t="L1" aria-pressed="false">L1 필수</button>
+    <button id="tab-L2" data-t="L2" aria-pressed="false">L2 강화</button>
+    <button id="tab-L3" data-t="L3" aria-pressed="false">L3 최고</button>
+  </div>
+  <p class="tier-note" id="tiernote"></p>
+
+  <div id="groups" class="wrap" style="gap:18px"></div>
+
+  <div class="foot">
+    <span>점수 기준: GREEN ≥ 90 · YELLOW 70–89 · RED &lt; 70</span>
+    <span>
+      <button id="reset" type="button">체크 초기화</button>
+      <span class="confirm" id="confirm" hidden>
+        <button id="reset-yes" class="danger" type="button">초기화 확인</button>
+        <button id="reset-no" type="button">취소</button>
+      </span>
+    </span>
+  </div>
+</div>
+
+<script>
+const ITEMS = [
+  // [id, 단계, 핵심여부, 분류, 항목, 설정 경로]
+  ["upd", "L1", 1, "패치", "자동 업데이트 전체 켜기", "설정 > 일반 > 소프트웨어 업데이트 > 자동 업데이트 (보안 응답 포함)"],
+  ["upd72", "L1", 0, "패치", "보안 업데이트 72시간 내 설치", "설정 > 일반 > 소프트웨어 업데이트"],
+  ["pass", "L1", 1, "잠금", "암호 6자리 이상 / 영숫자", "설정 > Face ID 및 암호 > 암호 변경 > 암호 옵션"],
+  ["wipe", "L1", 0, "잠금", "10회 실패 시 데이터 지우기", "설정 > Face ID 및 암호 (최하단)"],
+  ["usb", "L1", 1, "잠금", "잠김 상태 USB 액세서리 차단", "설정 > Face ID 및 암호 > 잠겨 있을 때 접근 허용 > 액세서리 끔"],
+  ["lockcc", "L1", 0, "잠금", "잠금 화면 제어 센터·답장·지갑 끔", "설정 > Face ID 및 암호 > 잠겨 있을 때 접근 허용"],
+  ["2fa", "L1", 1, "Apple 계정", "이중 인증 켜기", "설정 > [이름] > 로그인 및 보안"],
+  ["devs", "L1", 0, "Apple 계정", "모르는 로그인 기기 제거", "설정 > [이름] > 하단 기기 목록"],
+  ["pwuniq", "L1", 0, "Apple 계정", "계정 비밀번호 고유값 사용", "타 서비스 재사용 금지"],
+  ["sdp", "L1", 1, "도난 대비", "도난 기기 보호 켜기 (항상)", "설정 > Face ID 및 암호 > 도난 기기 보호"],
+  ["prof", "L1", 1, "프로파일·앱", "미확인 프로파일 0개", "설정 > 일반 > VPN 및 기기 관리"],
+  ["apps", "L1", 0, "프로파일·앱", "미사용 앱 삭제, App Store 외 설치 금지", "홈 화면 / 앱 보관함"],
+  ["track", "L1", 0, "프로파일·앱", "앱 추적 요청 허용 끔", "설정 > 개인정보 보호 및 보안 > 추적"],
+  ["filter", "L1", 0, "메시지·웹", "알 수 없는 발신자 필터링", "설정 > 앱 > 메시지"],
+  ["fraud", "L1", 0, "메시지·웹", "Safari 사기성 웹 사이트 경고", "설정 > 앱 > Safari"],
+  ["key", "L2", 1, "계정 최상위", "보안 키(FIDO2) 2개 등록", "설정 > [이름] > 로그인 및 보안 > 보안 키"],
+  ["rkey", "L2", 0, "계정 최상위", "복구 키 생성·오프라인 보관", "설정 > [이름] > 로그인 및 보안 > 계정 복구"],
+  ["adp", "L2", 1, "계정 최상위", "iCloud 고급 데이터 보호", "설정 > [이름] > iCloud > 고급 데이터 보호"],
+  ["simpin", "L2", 1, "통신(SIM)", "SIM PIN 설정", "설정 > 셀룰러 > SIM PIN"],
+  ["usim", "L2", 1, "통신(SIM)", "통신사 유심보호서비스 가입", "통신사 앱 / 고객센터 (무료)"],
+  ["msafer", "L2", 0, "통신(SIM)", "명의도용방지서비스 가입", "msafer.or.kr"],
+  ["nosms", "L2", 0, "통신(SIM)", "금융 2차 인증 SMS 탈피", "앱 인증 / OTP 전환"],
+  ["airdrop", "L2", 0, "네트워크", "AirDrop 연락처만", "설정 > 일반 > AirDrop"],
+  ["mac", "L2", 0, "네트워크", "비공개 Wi-Fi 주소 순환", "설정 > Wi-Fi > 네트워크 ⓘ"],
+  ["ask", "L2", 0, "네트워크", "네트워크 연결 요청 끔", "설정 > Wi-Fi"],
+  ["relay", "L2", 0, "네트워크", "iCloud 비공개 릴레이", "설정 > [이름] > iCloud > 비공개 릴레이"],
+  ["report", "L2", 0, "권한", "앱 개인정보 보호 리포트 켜기", "설정 > 개인정보 보호 및 보안"],
+  ["perm", "L2", 0, "권한", "위치·마이크·카메라 권한 최소화", "설정 > 개인정보 보호 및 보안"],
+  ["safety", "L2", 0, "권한", "안전 확인(Safety Check) 실행", "설정 > 개인정보 보호 및 보안 > 안전 확인"],
+  ["pwrec", "L2", 0, "권한", "암호 앱 보안 권장 사항 0건", "암호 앱 > 보안"],
+  ["ckv", "L2", 0, "권한", "iMessage 연락처 키 확인", "설정 > [이름] > 연락처 키 확인"],
+  ["lockdown", "L3", 1, "표적 방어", "차단 모드(Lockdown Mode) 켜기", "설정 > 개인정보 보호 및 보안 > 차단 모드"],
+  ["reboot", "L3", 1, "표적 방어", "일일 재부팅 자동화 설치", "단축어 > 자동화 (docs/shortcuts-automation.md A1)"],
+  ["split", "L3", 0, "표적 방어", "업무 전용 기기 분리", "개인 SNS·게임 앱 미설치"],
+  ["e2e", "L3", 0, "표적 방어", "민감 대화 E2E + 사라지는 메시지", "대면 우선"],
+  ["mvt", "L3", 1, "표적 방어", "월 1회 MVT 포렌식 점검", "PC에서 scripts/mvt_scan.sh"],
+];
+const TIER_NOTE = {
+  all: "L1 → L2 → L3 순서로 적용합니다.",
+  L1: "전원 적용. 약 15분.",
+  L2: "경영진 권장. 계정·통신 탈취 차단 중심. 약 15분.",
+  L3: "소송·분쟁·언론 노출 기간 등 표적 위험이 높을 때 적용."
+};
+const KEY = "isec-ops-v1";
+let state = {};
+let tab = "all";
+try { state = JSON.parse(localStorage.getItem(KEY) || "{}") || {}; } catch (e) { state = {}; }
+try { const t = localStorage.getItem(KEY + "-tab"); if (t && TIER_NOTE[t]) tab = t; } catch (e) {}
+const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); localStorage.setItem(KEY + "-tab", tab); } catch (e) {} };
+const w = it => it[2] ? 3 : 1;
+
+function render() {
+  const groups = document.getElementById("groups");
+  groups.innerHTML = "";
+  const shown = ITEMS.filter(it => tab === "all" || it[1] === tab);
+  const byCat = new Map();
+  shown.forEach(it => { const k = (tab === "all" ? it[1] + " · " : "") + it[3]; if (!byCat.has(k)) byCat.set(k, []); byCat.get(k).push(it); });
+  for (const [cat, items] of byCat) {
+    const g = document.createElement("section"); g.className = "group";
+    const h = document.createElement("h2"); h.textContent = cat; g.appendChild(h);
+    const list = document.createElement("div"); list.className = "list";
+    items.forEach(it => {
+      const lab = document.createElement("label"); lab.className = "item";
+      const cb = document.createElement("input"); cb.type = "checkbox"; cb.id = "chk-" + it[0]; cb.checked = !!state[it[0]];
+      cb.addEventListener("change", () => { state[it[0]] = cb.checked; save(); score(); });
+      const box = document.createElement("span"); box.className = "box";
+      const txt = document.createElement("span"); txt.className = "txt";
+      const t = document.createElement("div"); t.className = "t"; t.textContent = it[4];
+      if (it[2]) { const c = document.createElement("span"); c.className = "crit"; c.textContent = "★ 핵심"; t.appendChild(c); }
+      const p = document.createElement("div"); p.className = "path"; p.textContent = it[5];
+      txt.append(t, p); lab.append(cb, box, txt); list.appendChild(lab);
+    });
+    g.appendChild(list); groups.appendChild(g);
+  }
+  document.querySelectorAll("#tabs button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.t === tab)));
+  document.getElementById("tiernote").textContent = TIER_NOTE[tab];
+  score();
+}
+
+function score() {
+  const sum = list => list.reduce((a, it) => a + w(it), 0);
+  const done = list => sum(list.filter(it => state[it[0]]));
+  const pct = Math.round(done(ITEMS) / sum(ITEMS) * 100);
+  document.getElementById("pct").textContent = pct;
+  document.getElementById("arc").setAttribute("stroke-dashoffset", (326.7 * (1 - pct / 100)).toFixed(1));
+  const st = document.getElementById("status");
+  const [cls, label] = pct >= 90 ? ["good", "GREEN"] : pct >= 70 ? ["warn", "YELLOW"] : ["bad", "RED"];
+  st.className = "status " + cls; st.textContent = label;
+  document.getElementById("arc").setAttribute("stroke", `var(--${cls === "good" ? "good" : cls === "warn" ? "warn" : "accent"})`);
+  const tiers = document.getElementById("tiers"); tiers.innerHTML = "";
+  ["L1", "L2", "L3"].forEach(t => {
+    const l = ITEMS.filter(it => it[1] === t);
+    const p = Math.round(done(l) / sum(l) * 100);
+    const row = document.createElement("div"); row.className = "tier-row";
+    row.innerHTML = `<span class="lab">${t}</span><span class="bar"><i style="width:${p}%"></i></span><span class="pct">${p}%</span>`;
+    tiers.appendChild(row);
+  });
+  const nxt = ITEMS.filter(it => !state[it[0]]).sort((a, b) => b[2] - a[2] || a[1].localeCompare(b[1]))[0];
+  document.getElementById("next").innerHTML = nxt ? "다음 조치: <b></b>" : "<b>전 항목 적용 완료.</b> 월 1회 재점검.";
+  if (nxt) document.querySelector("#next b").textContent = `[${nxt[1]}] ${nxt[4]}`;
+}
+
+document.getElementById("tabs").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return; tab = b.dataset.t; save(); render();
+});
+const confirmBox = document.getElementById("confirm"), resetBtn = document.getElementById("reset");
+resetBtn.addEventListener("click", () => { confirmBox.hidden = false; resetBtn.hidden = true; });
+document.getElementById("reset-no").addEventListener("click", () => { confirmBox.hidden = true; resetBtn.hidden = false; });
+document.getElementById("reset-yes").addEventListener("click", () => { state = {}; save(); confirmBox.hidden = true; resetBtn.hidden = false; render(); });
+render();
+</script>
